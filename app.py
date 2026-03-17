@@ -1,5 +1,18 @@
 import gradio as gr
 import numpy as hp
+import torch
+import torchvision
+
+print("Iniciando Pytorch...")
+print("Cargando el modelo keypoint R-CNN (Puede tardar unos minutos la primera vez)...")
+
+device = torch.device('cpu')
+
+model = torchvision.models.detection.keypointrcnn_resnet50_fpn(weights='DEFAULT')
+model.to(device)
+model.eval()
+
+print("Modelo cargado exitosamente, cargando interfaz...")
 
 def analizar_postura(frame):
     return frame 
