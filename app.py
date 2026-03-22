@@ -1,108 +1,105 @@
-import gradio as gr
-import numpy as np
 import cv2
-import math 
+import math
 import time
+import numpy as np
+import streamlit as st
+from ultralytics import YOLO
 
-#importación blindada para el motor de mediapipe
-from mediapipe.python.solutions import pose as mp_pose
-from mediapipe.python.solutions import drawing_utils as mp_drawing
+#configuración interfaz
+st.set_page_config(page_title="KINEVISION AI", layout="wide")
+st.title("KINEVISION AI")
+st.markdown("Sistema de análisis biomecánico en tiempo real")
 
-print("Iniciando KINEVISION AI con Motor MediaPipe...")
+@st.cache_resource
+def load_model():
+    return YOLO('yolov8n-pose.pt') 
 
-#configuramos el motor de pose de mediapipe
-pose_engine = mp_pose.Pose(
-    static_image_mode=False, 
-    min_detection_confidence=0.5, 
-    min_tracking_confidence=0.5
-)
+model = load_model()
 
-#variables globales para el contador
-contador_flexiones = 0
-estado_brazo = "desconocido"
-tiempo_anterior = 0 #Variable para el calculo de FPS
+#variables
+if 'contador_flexiones' not in st.session_state:
+    st.session_state.contador_flexiones = 0
+if 'estado_brazo' not in st.session_state:
+    st.session_state.estado_brazo = "desconocido"
 
 def calcular_angulo(a, b, c):
-    # a hombro, b codo, c muñeca
     angulo = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
-    if angulo < 0:
-        angulo += 360
-    if angulo > 180:
-        angulo = 360 - angulo
-    return int(angulo) 
+    if angulo < 0: angulo += 360
+    if angulo > 180: angulo = 360 - angulo
+    return int(angulo)
 
-def analizar_postura(frame):
-    global contador_flexiones, estado_brazo, tiempo_anterior 
+col_video, col_controles = st.columns([3, 1])
 
-    if frame is None:
-        return None 
+with col_controles:
+    st.write("### Panel de Control")
+    if st.button("Resetear Contador", type="primary"):
+        st.session_state.contador_flexiones = 0
+    stop_button = st.button("Detener Cámara")
+    
+    st.markdown("---")
+    reps_ui = st.empty()
+    estado_ui = st.empty()
+    fps_ui = st.empty()
 
-    #calculo
+frame_window = col_video.empty()
+
+#camara
+cap = cv2.VideoCapture(0)
+tiempo_anterior = 0
+
+while cap.isOpened() and not stop_button:
+    ret, frame = cap.read()
+    if not ret: break
+    
+    #fps
     tiempo_actual = time.time()
-    fps = 0
-    if tiempo_anterior != 0:
-        fps = 1 / (tiempo_actual - tiempo_anterior)
+    fps = 1 / (tiempo_actual - tiempo_anterior) if tiempo_anterior != 0 else 0
     tiempo_anterior = tiempo_actual
 
-    imagen_dibujada = np.array(frame)
+    results = model(frame, stream=True, verbose=False, device='cpu')
+    
+    for r in results:
+        if r.keypoints is not None and r.keypoints.xy is not None:
+            keypoints = r.keypoints.xy.cpu().numpy()
+            
+            if keypoints.shape[1] > 0:
+                puntos = keypoints[0]
+                
+                #izqquierda 
+                if len(puntos) > 9:
+                    hombro = puntos[5]
+                    codo = puntos[7]
+                    muneca = puntos[9]
 
-    #procesamiento con mediapipe en rgb
-    imagen_rgb = cv2.cvtColor(imagen_dibujada, cv2.COLOR_BGR2RGB)
-    resultados = pose_engine.process(imagen_rgb)
+                    if hombro[0] > 0 and codo[0] > 0 and muneca[0] > 0:
+                        x11, y11 = int(hombro[0]), int(hombro[1])
+                        x13, y13 = int(codo[0]), int(codo[1])
+                        x15, y15 = int(muneca[0]), int(muneca[1])
 
-    if resultados.pose_landmarks:
-        #dibujamos el esqueleto y los puntos directamente en la imagen
-        mp_drawing.draw_landmarks(imagen_dibujada, resultados.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+                        angulo_brazo_izq = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
+                        
+                        if angulo_brazo_izq > 150: 
+                            st.session_state.estado_brazo = "abajo (extendido)"
+                        if angulo_brazo_izq < 75 and st.session_state.estado_brazo == "abajo (extendido)":
+                            st.session_state.estado_brazo = "arriba (flexion)"
+                            st.session_state.contador_flexiones += 1
 
-        puntos = resultados.pose_landmarks.landmark
-        alto, ancho, _ = imagen_dibujada.shape
+                        #angulo linea codo
+                        cv2.putText(frame, str(angulo_brazo_izq), (x13 + 15, y13), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-        #puntos del brazo izquierdo en mediapipe: hombro(11), codo(13), muñeca(15)
-        hombro_izq = puntos[11]
-        codo_izq = puntos[13]
-        muneca_izq = puntos[15]
-
-        #solo medimos y mostramos si la IA ve claramente el brazo
-        if hombro_izq.visibility > 0.5 and codo_izq.visibility > 0.5 and muneca_izq.visibility > 0.5:
-            # pasamos las coordenadas normalizadas a píxeles reales
-            x11, y11 = int(hombro_izq.x * ancho), int(hombro_izq.y * alto)
-            x13, y13 = int(codo_izq.x * ancho), int(codo_izq.y * alto)
-            x15, y15 = int(muneca_izq.x * ancho), int(muneca_izq.y * alto)
-
-            angulo_brazo_izq = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
-
-            #escribimos el ángulo en la imagen, justo al lado del codo
-            cv2.putText(imagen_dibujada, str(angulo_brazo_izq), (x13 + 15, y13), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-
-            #logica del contador con los angulos ajustados para mayor fluidez
-            if angulo_brazo_izq > 150: 
-                estado_brazo = "abajo (extendido)"
-
-            if angulo_brazo_izq < 75 and estado_brazo == "abajo (extendido)": 
-                estado_brazo = "arriba (flexion)"
-                contador_flexiones += 1
-
-    #interfaz visual del cuadro negro
-    cv2.rectangle(imagen_dibujada, (10, 50), (320, 190), (0, 0, 0), -1) 
-    cv2.putText(imagen_dibujada, f"Reps: {contador_flexiones}", (25, 100), 
+    cv2.rectangle(frame, (10, 50), (320, 190), (0, 0, 0), -1) 
+    cv2.putText(frame, f"Reps: {st.session_state.contador_flexiones}", (25, 100), 
                 cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
-    cv2.putText(imagen_dibujada, f"Estado: {estado_brazo}", (25, 140), 
+    cv2.putText(frame, f"Estado: {st.session_state.estado_brazo}", (25, 140), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    #mostramos los FPS en rojo
-    cv2.putText(imagen_dibujada, f"FPS: {int(fps)}", (25, 175), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2) 
+    cv2.putText(frame, f"FPS: {int(fps)}", (25, 175), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-    return imagen_dibujada 
+    frame_window.image(frame, channels="BGR")
+    
+    reps_ui.metric("Flexiones Completadas", st.session_state.contador_flexiones)
+    estado_ui.info(f"Fase actual: **{st.session_state.estado_brazo}**")
+    fps_ui.text(f"Rendimiento actual: {int(fps)} FPS")
 
-interfaz = gr.Interface(
-    fn=analizar_postura,
-    inputs=gr.Image(sources=["webcam"], streaming=True, label="Camara en navegador"),
-    outputs=gr.Image(label="Analisis KineVision"),
-    title="KINEVISION AI",
-    description="Sistema de análisis biomecánico en tiempo real.",
-    live=True
-)
-
-if __name__ == "__main__":
-    interfaz.launch()
+cap.release()

@@ -172,3 +172,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Imágenes temporales o resultados
+*.webp
+*.jpg
+*.jpeg
+*.png
+.gradio/
+flagged/
+.streamlit/
