@@ -22,7 +22,7 @@ if 'contador_flexiones' not in st.session_state:
 if 'estado_brazo' not in st.session_state:
     st.session_state.estado_brazo = "desconocido"
 if 'ejercicio_actual' not in st.session_state:
-    st.session_state.ejercicio_actual = "push up"
+    st.session_state.ejercicio_actual = "Push Up"
 
 def calcular_angulo(a, b, c):
     angulo = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
@@ -76,7 +76,7 @@ while cap.isOpened() and not stop_button:
         if r.keypoints is not None and r.keypoints.xy is not None:
             keypoints = r.keypoints.xy.cpu().numpy()
             
-            if keypoints.shape[1] > 0:
+            if len(keypoints) > 0 and keypoints.shape[1] > 0:
                 puntos = keypoints[0]
                 
                 if len(puntos) > 15:
@@ -115,6 +115,9 @@ while cap.isOpened() and not stop_button:
                             cv2.putText(frame, str(angulo_brazo_izq), (x13 + 15, y13), 
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                             cv2.line(frame, (x11, y11), (x_cadera, y_cadera), color_postura, 2)
+            else:
+                mensaje_postura = "Usuario no detectado"
+                color_postura = (150, 150, 150)
 
     cv2.rectangle(frame, (10, 50), (400, 230), (0, 0, 0), -1) 
     cv2.putText(frame, f"Reps: {st.session_state.contador_flexiones}", (25, 100), 
