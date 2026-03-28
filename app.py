@@ -105,7 +105,12 @@ if encender_camara:
                                 angulo_brazo_izq = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
                                 angulo_espalda = calcular_angulo((x11, y11), (x_cadera, y_cadera), (x_tobillo, y_tobillo))
                                 
-                                if angulo_espalda < 150:
+                                estas_acostado = abs(y11 - y_tobillo) < (frame.shape[0] * 0.4)
+                                
+                                if not estas_acostado:
+                                    mensaje_postura = "MAL: PONGASE EN EL SUELO"
+                                    color_postura = (0, 165, 255)
+                                elif angulo_espalda < 150:
                                     mensaje_postura = "MAL: CADERA CAIDA"
                                     color_postura = (0, 0, 255)
                                 else:
@@ -114,9 +119,13 @@ if encender_camara:
                                     
                                     if angulo_brazo_izq > 150: 
                                         st.session_state.estado_brazo = "abajo (extendido)"
+                                        st.session_state['hombro_y_start'] = y11 #altura de hombro
+                                        
                                     if angulo_brazo_izq < 75 and st.session_state.estado_brazo == "abajo (extendido)":
-                                        st.session_state.estado_brazo = "arriba (flexion)"
-                                        st.session_state.contador_flexiones += 1
+                                        desplazamiento_y = y11 - st.session_state.get('hombro_y_start', y11)
+                                        if desplazamiento_y > (frame.shape[0] * 0.1):
+                                            st.session_state.estado_brazo = "arriba (flexion)"
+                                            st.session_state.contador_flexiones += 1
 
                                 cv2.putText(frame, str(angulo_brazo_izq), (x13 + 15, y13), 
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -148,6 +157,30 @@ if encender_camara:
                                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                                     cv2.line(frame, (x_cadera, y_cadera), (x_rodilla, y_rodilla), color_postura, 2)
                                     cv2.line(frame, (x_rodilla, y_rodilla), (x_tobillo, y_tobillo), color_postura, 2)    
+                                    
+                            elif st.session_state.ejercicio_actual == "Curl de Bíceps":
+                                angulo_brazo_izq = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
+                                
+                                #que el codo no se despegue de la cadera (trampa)
+                                distancia_codo = abs(x13 - x_cadera)
+                                
+                                if distancia_codo > 80: 
+                                    mensaje_postura = "MAL: PEGUE EL CODO AL CUERPO"
+                                    color_postura = (0, 0, 255)
+                                else:
+                                    mensaje_postura = "BIEN: POSTURA CORRECTA"
+                                    color_postura = (0, 255, 0)
+                                    
+                                    if angulo_brazo_izq > 150:
+                                        st.session_state.estado_brazo = "abajo (extendido)"
+                                    if angulo_brazo_izq < 50 and st.session_state.estado_brazo == "abajo (extendido)":
+                                        st.session_state.estado_brazo = "arriba (flexion)"
+                                        st.session_state.contador_flexiones += 1
+                                        
+                                cv2.putText(frame, str(angulo_brazo_izq), (x13 + 15, y13), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                                cv2.line(frame, (x11, y11), (x13, y13), color_postura, 2)
+                                cv2.line(frame, (x13, y13), (x15, y15), color_postura, 2)
                 else:
                     mensaje_postura = "Usuario no detectado"
                     color_postura = (150, 150, 150)
