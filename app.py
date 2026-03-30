@@ -68,6 +68,8 @@ if encender_camara:
         ret, frame = cap.read()
         if not ret: break
         
+        frame = cv2.flip(frame, 1)
+        
         #fps
         tiempo_actual = time.time()
         fps = 1 / (tiempo_actual - tiempo_anterior) if tiempo_anterior != 0 else 0
@@ -149,14 +151,23 @@ if encender_camara:
                                         
                                         if angulo_pierna > 160:
                                             st.session_state.estado_brazo = "arriba (de pie)"
+                                            #altura de la cadera de pie
+                                            st.session_state['cadera_y_start'] = y_cadera 
+                                            
                                         if angulo_pierna < 90 and st.session_state.estado_brazo == "arriba (de pie)":
-                                            st.session_state.estado_brazo = "abajo (sentadilla)"
-                                            st.session_state.contador_flexiones += 1
+                                            desplazamiento_y = y_cadera - st.session_state.get('cadera_y_start', y_cadera)
+                                            
+                                            if desplazamiento_y > (frame.shape[0] * 0.15): #bajar un 15% de la pantalla
+                                                st.session_state.estado_brazo = "abajo (sentadilla)"
+                                                st.session_state.contador_flexiones += 1
+                                            else:
+                                                mensaje_postura = "MAL: BAJE LA CADERA, NO SUBA LA PIERNA"
+                                                color_postura = (0, 165, 255)
 
                                     cv2.putText(frame, str(angulo_pierna), (x_rodilla + 15, y_rodilla), 
                                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                                     cv2.line(frame, (x_cadera, y_cadera), (x_rodilla, y_rodilla), color_postura, 2)
-                                    cv2.line(frame, (x_rodilla, y_rodilla), (x_tobillo, y_tobillo), color_postura, 2)    
+                                    cv2.line(frame, (x_rodilla, y_rodilla), (x_tobillo, y_tobillo), color_postura, 2)   
                                     
                             elif st.session_state.ejercicio_actual == "Curl de Bíceps":
                                 angulo_brazo_izq = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
