@@ -87,20 +87,33 @@ if encender_camara:
                 if len(keypoints) > 0 and keypoints.shape[1] > 0:
                     puntos = keypoints[0]
                     
-                    if len(puntos) > 15:
-                        hombro = puntos[5]
-                        codo = puntos[7]
-                        muneca = puntos[9]
-                        cadera = puntos[11]
-                        tobillo = puntos[15]
+                    if len(puntos) > 16:
+                        visibilidad_izq = puntos[5][0] + puntos[11][0] + puntos[13][0]
+                        visibilidad_der = puntos[6][0] + puntos[12][0] + puntos[14][0]
+                        
+                        if visibilidad_izq > visibilidad_der:
+                            hombro = puntos[5]
+                            codo = puntos[7]
+                            muneca = puntos[9]
+                            cadera = puntos[11]
+                            rodilla = puntos[13]
+                            tobillo = puntos[15]
+                        else:
+                            hombro = puntos[6]
+                            codo = puntos[8]
+                            muneca = puntos[10]
+                            cadera = puntos[12]
+                            rodilla = puntos[14]
+                            tobillo = puntos[16]
 
-                        if hombro[0] > 0 and codo[0] > 0 and muneca[0] > 0 and cadera[0] > 0 and tobillo[0] > 0:
+                        if hombro[0] > 0 and codo[0] > 0 and muneca[0] > 0 and cadera[0] > 0 and tobillo[0] > 0 and rodilla[0] > 0:
                             x11, y11 = int(hombro[0]), int(hombro[1])
                             x13, y13 = int(codo[0]), int(codo[1])
                             x15, y15 = int(muneca[0]), int(muneca[1])
                             
                             #espalda
                             x_cadera, y_cadera = int(cadera[0]), int(cadera[1])
+                            x_rodilla, y_rodilla = int(rodilla[0]), int(rodilla[1])
                             x_tobillo, y_tobillo = int(tobillo[0]), int(tobillo[1])
 
                             if st.session_state.ejercicio_actual == "Push Up":
@@ -134,40 +147,35 @@ if encender_camara:
                                 cv2.line(frame, (x11, y11), (x_cadera, y_cadera), color_postura, 2)
                                 
                             elif st.session_state.ejercicio_actual == "Sentadillas":
-                                rodilla = puntos[13] #rodilla izquierda
-                                
-                                if rodilla[0] > 0:
-                                    x_rodilla, y_rodilla = int(rodilla[0]), int(rodilla[1])
+                                angulo_pierna = calcular_angulo((x_cadera, y_cadera), (x_rodilla, y_rodilla), (x_tobillo, y_tobillo))
+                                angulo_torso = calcular_angulo((x11, y11), (x_cadera, y_cadera), (x_rodilla, y_rodilla))
+
+                                if angulo_torso < 60: #muy adelante
+                                    mensaje_postura = "MAL: ESPALDA INCLINADA"
+                                    color_postura = (0, 0, 255)
+                                else:
+                                    mensaje_postura = "BIEN: POSTURA CORRECTA"
+                                    color_postura = (0, 255, 0)
                                     
-                                    angulo_pierna = calcular_angulo((x_cadera, y_cadera), (x_rodilla, y_rodilla), (x_tobillo, y_tobillo))
-                                    angulo_torso = calcular_angulo((x11, y11), (x_cadera, y_cadera), (x_rodilla, y_rodilla))
-
-                                    if angulo_torso < 60: #muy adelante
-                                        mensaje_postura = "MAL: ESPALDA INCLINADA"
-                                        color_postura = (0, 0, 255)
-                                    else:
-                                        mensaje_postura = "BIEN: POSTURA CORRECTA"
-                                        color_postura = (0, 255, 0)
+                                    if angulo_pierna > 160:
+                                        st.session_state.estado_brazo = "arriba (de pie)"
+                                        #altura de la cadera de pie
+                                        st.session_state['cadera_y_start'] = y_cadera 
                                         
-                                        if angulo_pierna > 160:
-                                            st.session_state.estado_brazo = "arriba (de pie)"
-                                            #altura de la cadera de pie
-                                            st.session_state['cadera_y_start'] = y_cadera 
-                                            
-                                        if angulo_pierna < 90 and st.session_state.estado_brazo == "arriba (de pie)":
-                                            desplazamiento_y = y_cadera - st.session_state.get('cadera_y_start', y_cadera)
-                                            
-                                            if desplazamiento_y > (frame.shape[0] * 0.15): #bajar un 15% de la pantalla
-                                                st.session_state.estado_brazo = "abajo (sentadilla)"
-                                                st.session_state.contador_flexiones += 1
-                                            else:
-                                                mensaje_postura = "MAL: BAJE LA CADERA, NO SUBA LA PIERNA"
-                                                color_postura = (0, 165, 255)
+                                    if angulo_pierna < 90 and st.session_state.estado_brazo == "arriba (de pie)":
+                                        desplazamiento_y = y_cadera - st.session_state.get('cadera_y_start', y_cadera)
+                                        
+                                        if desplazamiento_y > (frame.shape[0] * 0.15): #bajar un 15% de la pantalla
+                                            st.session_state.estado_brazo = "abajo (sentadilla)"
+                                            st.session_state.contador_flexiones += 1
+                                        else:
+                                            mensaje_postura = "MAL: BAJE LA CADERA, NO SUBA LA PIERNA"
+                                            color_postura = (0, 165, 255)
 
-                                    cv2.putText(frame, str(angulo_pierna), (x_rodilla + 15, y_rodilla), 
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                                    cv2.line(frame, (x_cadera, y_cadera), (x_rodilla, y_rodilla), color_postura, 2)
-                                    cv2.line(frame, (x_rodilla, y_rodilla), (x_tobillo, y_tobillo), color_postura, 2)   
+                                cv2.putText(frame, str(angulo_pierna), (x_rodilla + 15, y_rodilla), 
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                                cv2.line(frame, (x_cadera, y_cadera), (x_rodilla, y_rodilla), color_postura, 2)
+                                cv2.line(frame, (x_rodilla, y_rodilla), (x_tobillo, y_tobillo), color_postura, 2)   
                                     
                             elif st.session_state.ejercicio_actual == "Curl de Bíceps":
                                 angulo_brazo_izq = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
