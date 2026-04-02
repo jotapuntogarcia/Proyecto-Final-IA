@@ -1,9 +1,14 @@
 import cv2
 import math
 import time
+import os
 import numpy as np
 import streamlit as st
 from ultralytics import YOLO
+from gtts import gTTS
+import pygame
+
+pygame.mixer.init()
 
 #configuración interfaz
 st.set_page_config(page_title="KINEVISION AI", layout="wide")
@@ -23,6 +28,31 @@ if 'estado_brazo' not in st.session_state:
     st.session_state.estado_brazo = "desconocido"
 if 'ejercicio_actual' not in st.session_state:
     st.session_state.ejercicio_actual = "Push Up"
+if 'ultimo_audio' not in st.session_state:
+    st.session_state.ultimo_audio = 0
+
+#diccionario de explicaciones
+EXPLICACIONES = {
+    "MAL_SUELO": "Detecto que tu centro de masa está muy elevado. Para una flexión efectiva, debes posicionar tu cuerpo paralelo al suelo, permitiendo que la gravedad maximice la carga en tus pectorales y tríceps.",
+    "MAL_CADERA_PUSH": "Atención: tu zona lumbar presenta una curvatura excesiva. Mantén el core contraído para alinear la columna; una cadera caída reduce la eficiencia y aumenta el riesgo de lesión.",
+    "MAL_ESPALDA_SQUAT": "Tu torso presenta una inclinación anterior excesiva. Mantén el pecho arriba y la mirada al frente para asegurar que la carga se distribuya en los cuádriceps y no en la zona lumbar.",
+    "MAL_CADERA_SQUAT": "Análisis biomecánico incompleto: el rango de movimiento es insuficiente. Para una activación glútea óptima, baja la cadera hasta que el fémur rompa la línea paralela al suelo.",
+    "MAL_CODO_BICEPS": "Error de estabilidad: el codo se está desplazando del eje vertical de tu torso. Fija el codo en las costillas para aislar el bíceps y evitar compensaciones con el deltoides anterior."
+}
+
+def hablar(clave):
+    ahora = time.time()
+    if ahora - st.session_state.ultimo_audio > 8:
+        mensaje = EXPLICACIONES.get(clave, "")
+        if mensaje:
+            try:
+                tts = gTTS(text=mensaje, lang='es', tld='com.mx')
+                tts.save("feedback.mp3")
+                pygame.mixer.music.load("feedback.mp3")
+                pygame.mixer.music.play()
+                st.session_state.ultimo_audio = ahora
+            except Exception as e:
+                pass
 
 def calcular_angulo(a, b, c):
     angulo = math.degrees(math.atan2(c[1]-b[1], c[0]-b[0]) - math.atan2(a[1]-b[1], a[0]-b[0]))
@@ -125,9 +155,11 @@ if encender_camara:
                                 if not estas_acostado:
                                     mensaje_postura = "MAL: PONGASE EN EL SUELO"
                                     color_postura = (0, 165, 255)
+                                    hablar("MAL_SUELO")
                                 elif angulo_espalda < 150:
                                     mensaje_postura = "MAL: CADERA CAIDA"
                                     color_postura = (0, 0, 255)
+                                    hablar("MAL_CADERA_PUSH")
                                 else:
                                     mensaje_postura = "BIEN: POSTURA RECTA"
                                     color_postura = (0, 255, 0)
@@ -153,6 +185,7 @@ if encender_camara:
                                 if angulo_torso < 60: #muy adelante
                                     mensaje_postura = "MAL: ESPALDA INCLINADA"
                                     color_postura = (0, 0, 255)
+                                    hablar("MAL_ESPALDA_SQUAT")
                                 else:
                                     mensaje_postura = "BIEN: POSTURA CORRECTA"
                                     color_postura = (0, 255, 0)
@@ -171,6 +204,7 @@ if encender_camara:
                                         else:
                                             mensaje_postura = "MAL: BAJE LA CADERA, NO SUBA LA PIERNA"
                                             color_postura = (0, 165, 255)
+                                            hablar("MAL_CADERA_SQUAT")
 
                                 cv2.putText(frame, str(angulo_pierna), (x_rodilla + 15, y_rodilla), 
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -182,19 +216,21 @@ if encender_camara:
                                 
                                 #que el codo no se despegue de la cadera (trampa)
                                 distancia_codo = abs(x13 - x_cadera)
+                                limite_codo = frame.shape[1] * 0.12
                                 
-                                if distancia_codo > 80: 
+                                if distancia_codo > limite_codo: 
                                     mensaje_postura = "MAL: PEGUE EL CODO AL CUERPO"
                                     color_postura = (0, 0, 255)
+                                    hablar("MAL_CODO_BICEPS")
                                 else:
                                     mensaje_postura = "BIEN: POSTURA CORRECTA"
                                     color_postura = (0, 255, 0)
                                     
-                                    if angulo_brazo_izq > 150:
-                                        st.session_state.estado_brazo = "abajo (extendido)"
-                                    if angulo_brazo_izq < 50 and st.session_state.estado_brazo == "abajo (extendido)":
-                                        st.session_state.estado_brazo = "arriba (flexion)"
-                                        st.session_state.contador_flexiones += 1
+                                if angulo_brazo_izq > 135:
+                                    st.session_state.estado_brazo = "abajo (extendido)"
+                                if angulo_brazo_izq < 80 and st.session_state.estado_brazo == "abajo (extendido)":
+                                    st.session_state.estado_brazo = "arriba (flexion)"
+                                    st.session_state.contador_flexiones += 1
                                         
                                 cv2.putText(frame, str(angulo_brazo_izq), (x13 + 15, y13), 
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
