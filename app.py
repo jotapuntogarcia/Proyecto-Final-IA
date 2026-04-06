@@ -111,15 +111,17 @@ if encender_camara:
         color_postura = (255, 255, 255)
 
         for r in results:
-            if r.keypoints is not None and r.keypoints.xy is not None:
+            if r.keypoints is not None and r.keypoints.xy is not None and r.keypoints.conf is not None:
                 keypoints = r.keypoints.xy.cpu().numpy()
+                confianzas = r.keypoints.conf.cpu().numpy()
                 
-                if len(keypoints) > 0 and keypoints.shape[1] > 0:
+                if len(keypoints) > 0 and keypoints.shape[1] > 0 and len(confianzas) > 0:
                     puntos = keypoints[0]
+                    confs = confianzas[0]
                     
-                    if len(puntos) > 16:
-                        visibilidad_izq = puntos[5][0] + puntos[11][0] + puntos[13][0]
-                        visibilidad_der = puntos[6][0] + puntos[12][0] + puntos[14][0]
+                    if len(puntos) > 16 and len(confs) > 16:
+                        visibilidad_izq = confs[5] + confs[11] + confs[13]
+                        visibilidad_der = confs[6] + confs[12] + confs[14]
                         
                         if visibilidad_izq > visibilidad_der:
                             hombro = puntos[5]
@@ -141,13 +143,13 @@ if encender_camara:
                             x13, y13 = int(codo[0]), int(codo[1])
                             x15, y15 = int(muneca[0]), int(muneca[1])
                             
-                            #espalda
+                            #espalda/piernas
                             x_cadera, y_cadera = int(cadera[0]), int(cadera[1])
                             x_rodilla, y_rodilla = int(rodilla[0]), int(rodilla[1])
                             x_tobillo, y_tobillo = int(tobillo[0]), int(tobillo[1])
 
                             if st.session_state.ejercicio_actual == "Push Up":
-                                angulo_brazo_izq = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
+                                angulo_brazo = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
                                 angulo_espalda = calcular_angulo((x11, y11), (x_cadera, y_cadera), (x_tobillo, y_tobillo))
                                 
                                 estas_acostado = abs(y11 - y_tobillo) < (frame.shape[0] * 0.4)
@@ -164,17 +166,17 @@ if encender_camara:
                                     mensaje_postura = "BIEN: POSTURA RECTA"
                                     color_postura = (0, 255, 0)
                                     
-                                    if angulo_brazo_izq > 150: 
+                                    if angulo_brazo > 150: 
                                         st.session_state.estado_brazo = "abajo (extendido)"
                                         st.session_state['hombro_y_start'] = y11 #altura de hombro
                                         
-                                    if angulo_brazo_izq < 75 and st.session_state.estado_brazo == "abajo (extendido)":
+                                    if angulo_brazo < 75 and st.session_state.estado_brazo == "abajo (extendido)":
                                         desplazamiento_y = y11 - st.session_state.get('hombro_y_start', y11)
                                         if desplazamiento_y > (frame.shape[0] * 0.1):
                                             st.session_state.estado_brazo = "arriba (flexion)"
                                             st.session_state.contador_flexiones += 1
 
-                                cv2.putText(frame, str(angulo_brazo_izq), (x13 + 15, y13), 
+                                cv2.putText(frame, str(angulo_brazo), (x13 + 15, y13), 
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                                 cv2.line(frame, (x11, y11), (x_cadera, y_cadera), color_postura, 2)
                                 
@@ -192,13 +194,12 @@ if encender_camara:
                                     
                                     if angulo_pierna > 160:
                                         st.session_state.estado_brazo = "arriba (de pie)"
-                                        #altura de la cadera de pie
                                         st.session_state['cadera_y_start'] = y_cadera 
                                         
                                     if angulo_pierna < 90 and st.session_state.estado_brazo == "arriba (de pie)":
                                         desplazamiento_y = y_cadera - st.session_state.get('cadera_y_start', y_cadera)
                                         
-                                        if desplazamiento_y > (frame.shape[0] * 0.15): #bajar un 15% de la pantalla
+                                        if desplazamiento_y > (frame.shape[0] * 0.15):
                                             st.session_state.estado_brazo = "abajo (sentadilla)"
                                             st.session_state.contador_flexiones += 1
                                         else:
@@ -212,7 +213,7 @@ if encender_camara:
                                 cv2.line(frame, (x_rodilla, y_rodilla), (x_tobillo, y_tobillo), color_postura, 2)   
                                     
                             elif st.session_state.ejercicio_actual == "Curl de Bíceps":
-                                angulo_brazo_izq = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
+                                angulo_brazo = calcular_angulo((x11, y11), (x13, y13), (x15, y15))
                                 
                                 #que el codo no se despegue de la cadera (trampa)
                                 distancia_codo = abs(x13 - x_cadera)
@@ -226,13 +227,13 @@ if encender_camara:
                                     mensaje_postura = "BIEN: POSTURA CORRECTA"
                                     color_postura = (0, 255, 0)
                                     
-                                if angulo_brazo_izq > 135:
+                                if angulo_brazo > 135:
                                     st.session_state.estado_brazo = "abajo (extendido)"
-                                if angulo_brazo_izq < 80 and st.session_state.estado_brazo == "abajo (extendido)":
+                                if angulo_brazo < 80 and st.session_state.estado_brazo == "abajo (extendido)":
                                     st.session_state.estado_brazo = "arriba (flexion)"
                                     st.session_state.contador_flexiones += 1
                                         
-                                cv2.putText(frame, str(angulo_brazo_izq), (x13 + 15, y13), 
+                                cv2.putText(frame, str(angulo_brazo), (x13 + 15, y13), 
                                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                                 cv2.line(frame, (x11, y11), (x13, y13), color_postura, 2)
                                 cv2.line(frame, (x13, y13), (x15, y15), color_postura, 2)
