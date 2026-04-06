@@ -1,3 +1,5 @@
+#JUNIOR GARCIA 19-SISN-2-011
+
 import cv2
 import math
 import time

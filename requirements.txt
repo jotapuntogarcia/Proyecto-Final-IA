@@ -1,4 +1,6 @@
-streamlit
-ultralytics
 opencv-python
 numpy
+streamlit
+ultralytics
+gTTS
+pygame
