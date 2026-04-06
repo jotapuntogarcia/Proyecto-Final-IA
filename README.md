@@ -20,3 +20,6 @@
 ## Supervisor de Seguridad: Sistema de corrección por voz que se activa ante desviaciones técnicas (ej. codos despegados, cadera caída).
 ## Contador Inteligente: Máquina de estados para evitar conteos falsos por movimiento parcial.
 
+### Para instalar libreria, dependecias y ejercutar seguir el siguiente orden:
+### pip install -r requirements.txt
+### streamlit run app.py
